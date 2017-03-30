@@ -2,6 +2,7 @@ import argparse
 import csv
 import datetime
 import math
+import pyirt
 
 class item(object):
 	def __init__(self, user_id, item_id, time, outcome):
