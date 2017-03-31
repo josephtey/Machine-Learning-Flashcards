@@ -40,12 +40,17 @@ def read_data(input_file, max_lines=None):
         seen = int(row['history_seen'])
         right = int(row['history_correct'])
         expo = float(row['exponential'])
+        item_difficulty = float(row['item_difficulty'])
+        user_ability = float(row['user_ability'])
+       
         wrong = seen - right
         # feature vector is a list of (feature, value) tuples
         fv = []
         fv.append((intern('right'), right))
         fv.append((intern('wrong'), wrong))
         fv.append((intern('expo'), expo))
+        fv.append((intern('item_difficulty'), item_difficulty))
+        fv.append((intern('user_ability'), user_ability))
         inst = Instance(p, t, fv, h, (right+2.)/(seen+4.),timestamp, user_id, item_id, expo)
         instances.append(inst)
 
@@ -61,6 +66,8 @@ def instToArray(instances, ret='h'):
         x.append(instances[i].fv[0][1])
         x.append(instances[i].fv[1][1])
         x.append(instances[i].fv[2][1])
+        x.append(instances[i].fv[3][1])
+        x.append(instances[i].fv[4][1])
 
         if ret == 'p':
             x.append(instances[i].t)
@@ -91,8 +98,8 @@ def evaluate(model, x, y):
                 wrong += 1
     else: 
         for i in range(len(x)):
-            fv = [x[i][0], x[i][1], x[i][2]]
-            t = x[i][3]
+            fv = [x[i][0], x[i][1], x[i][2], x[i][3], x[i][4]]
+            t = x[i][5]
             prediction = round(predict(model, fv, t))
             if prediction == y[i]:
                 correct += 1
@@ -115,8 +122,6 @@ test_data = read_data(args.input_file)[1]
 # test_data_Y = instToArray(test_data)[1]
 test_data_p_x = instToArray(test_data, 'p')[0]
 test_data_p_y = instToArray(test_data, 'p')[1]
-
-
 
 SpacedRepetitionModel = linear_model.LinearRegression()
 SpacedRepetitionModel.fit(train_data_X, train_data_Y)

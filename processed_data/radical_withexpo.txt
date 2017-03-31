@@ -1,3 +1,4 @@
+p_recall,timestamp,time_elapsed,user_id,item_id,history_seen,history_correct,exponential
 0.75,1190202099,88,Stu_0a54983b83e8d1560237404c181a2b22,ask_問_HanzipracticeBK1,2,1,1.0
 0.75,1190202293,194,Stu_0a54983b83e8d1560237404c181a2b22,ask_問_HanzipracticeBK1,3,2,1.8
 0.75,1190202525,232,Stu_0a54983b83e8d1560237404c181a2b22,ask_問_HanzipracticeBK1,4,3,2.44
