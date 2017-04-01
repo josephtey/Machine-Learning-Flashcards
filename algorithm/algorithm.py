@@ -125,7 +125,8 @@ test_data_p_y = instToArray(test_data, 'p')[1]
 
 SpacedRepetitionModel = linear_model.LinearRegression()
 SpacedRepetitionModel.fit(train_data_X, train_data_Y)
-
+print SpacedRepetitionModel.coef_
+print SpacedRepetitionModel.intercept_
 print evaluate(SpacedRepetitionModel, test_data_p_x, test_data_p_y)
 
 joblib.dump(SpacedRepetitionModel, 'models/model.pkl', compress=9)
