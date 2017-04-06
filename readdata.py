@@ -2,7 +2,7 @@ import argparse
 import csv
 import datetime
 import math
-from pyirt import *
+import codecs
 
 class item(object):
 	def __init__(self, user_id, item_id, time, outcome):
@@ -16,12 +16,12 @@ class itemHistory(object):
 	    self.listOfItems = list
 
 class trainingInst(object):
-	def __init__(self, user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, exponential_sum, item_difficulty, user_ability):
-		cur_response = 0
-		if last_response == 'CORRECT':
-			cur_response = 0.75
+	def __init__(self, user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, exponential_sum):
+		cur_response = False
+		if last_response == args.correct_str:
+			cur_response = True
 		else:
-			cur_response = 0.25
+			cur_response = False
 		self.user_id = user_id
 		self.item_id = item_id
 		self.last_response = cur_response
@@ -30,37 +30,6 @@ class trainingInst(object):
 		self.history_seen = history_seen
 		self.history_correct = history_correct
 		self.exponential_sum = exponential_sum
-		self.item_difficulty = item_difficulty
-		self.user_ability = user_ability
-
-def calculateIrt(fname):
-	file = open(fname, 'r')
-	src_fp = [[x for x in rec] for rec in csv.reader(file, delimiter=',')]
-
-	items = []
-	user_id_table = {}
-	item_id_table = {}
-	items = []
-	count_user = 0
-	count_item = 0
-	for i in range(len(src_fp)):
-		try:
-			#if there is such id
-			uid = user_id_table[src_fp[i][0]]
-		except :
-			#if no such id, then create ones
-			count_user += 1
-			user_id_table[str(src_fp[i][0])] = count_user
-		try :
-			eid = item_id_table[src_fp[i][3]]
-		except:
-			count_item += 1
-			item_id_table[str(src_fp[i][3])] = count_item
-		
-		items.append([user_id_table[src_fp[i][0]], item_id_table[src_fp[i][3]], changeToInt(src_fp[i][4])])
-
-	item_param, user_param = irt(items)
-	return item_param, user_param
 
 def changeToInt(text):
 	if text == 'CORRECT':
@@ -68,7 +37,9 @@ def changeToInt(text):
 	else: 
 		return 0
 
-def readData(fname):
+def readData(fname, user, module, outcome, timestamp):
+	column_index = {'user_id':user, 'module_id':module, 'outcome': outcome, 'timestamp': timestamp}
+
 	file = open(fname, 'r')
 	items = csv.reader(file)
 	raw_item_list = list(items)
@@ -80,23 +51,23 @@ def readData(fname):
 	for i in range(1, len(raw_item_list)):
 		try:
 			#if there is such id
-			uid = user_id_table[raw_item_list[i][0]]
+			uid = user_id_table[raw_item_list[i][column_index['user_id']]]
 		except :
 			#if no such id, then create one
 			count_user += 1
-			user_id_table[str(raw_item_list[i][0])] = count_user
+			user_id_table[str(raw_item_list[i][column_index['user_id']])] = count_user
 		try :
-			eid = item_id_table[raw_item_list[i][3]]
+			eid = item_id_table[raw_item_list[i][column_index['module_id']]]
 		except:
 			count_item += 1
-			item_id_table[str(raw_item_list[i][3])] = count_item
+			item_id_table[str(raw_item_list[i][column_index['module_id']])] = count_item
 		
-		raw_item_list[i][0] = user_id_table[str(raw_item_list[i][0])]
-		raw_item_list[i][3] = item_id_table[str(raw_item_list[i][3])]
+		raw_item_list[i][column_index['user_id']] = user_id_table[str(raw_item_list[i][column_index['user_id']])]
+		raw_item_list[i][column_index['module_id']] = item_id_table[str(raw_item_list[i][column_index['module_id']])]
 	
 	print raw_item_list
 	for i in range(1,len(raw_item_list)):
-		item_list.append(item(raw_item_list[i][0], raw_item_list[i][3], raw_item_list[i][2], raw_item_list[i][4]))
+		item_list.append(item(raw_item_list[i][column_index['user_id']], raw_item_list[i][column_index['module_id']], int(raw_item_list[i][column_index['timestamp']]), raw_item_list[i][column_index['outcome']]))
 	ultimate = []
 	interactions = []
 	for x in range(len(item_list)):
@@ -163,7 +134,7 @@ def convertTimeToTimestamp(input_time):
 
 
 def outputHistories(input_file, moreThan=0, writeFile=True, user_id=None, item_id=None):
-	histories = readData(input_file)
+	histories = readData(input_file,6,0,1,2)
 	file = open('histories.txt','w') 
 	for i in range(len(histories)):
 		if (user_id != None):
@@ -179,10 +150,8 @@ def outputHistories(input_file, moreThan=0, writeFile=True, user_id=None, item_i
 				else:
 					print convertHistoryToList(histories[i])
 
-def outputTrainingInstances(input_file):
-	histories = readData(input_file)
-	item_difficulties = calculateIrt(input_file)[0]
-	user_abilities = calculateIrt(input_file)[1]
+def outputTrainingInstances(input_file, user, module, time, outcome, ts):
+	histories = readData(input_file, user,module,time,outcome)
 	instances = []
 	for i in range(len(histories)):
 		current_history = histories[i].listOfItems
@@ -195,17 +164,19 @@ def outputTrainingInstances(input_file):
 			user_id = current_history[x].user_id
 			item_id = current_history[x].item_id
 			last_response = current_history[x].outcome
-			timestamp = str(convertTimeToTimestamp(current_history[x].time))
-			time_elapsed = str(convertTimeToTimestamp(current_history[x].time)-convertTimeToTimestamp(current_history[x-1].time))		
+			if ts == False:
+				timestamp = str(convertTimeToTimestamp(current_history[x].time))
+				time_elapsed = str(convertTimeToTimestamp(current_history[x].time)-convertTimeToTimestamp(current_history[x-1].time))		
+			else:
+				timestamp = current_history[x].time
+				time_elapsed = current_history[x].time - current_history[x-1].time
 			history_seen = x
-			item_difficulty = item_difficulties[item_id]['beta']
-			user_ability = user_abilities[user_id]
 
 			#create instance
-			instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo, item_difficulty, user_ability)
+			instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo)
 			
 			#increments vars
-			if last_response == 'CORRECT':
+			if last_response == args.correct_str:
 				history_correct = history_correct + 1
 				sequence.append(1)
 			else:
@@ -217,7 +188,7 @@ def outputTrainingInstances(input_file):
 			expo = 0.0
 			for y in range(len(sequence)):
 				expo_incre = math.pow(0.8,y)
-				if list(reversed(sequence))[y] == 1.0:
+				if list(reversed(sequence))[y] == 1:
 					expo += expo_incre
 
 
@@ -225,20 +196,25 @@ def outputTrainingInstances(input_file):
 
 def instancesToFile(list):
 	file = open('data.txt', 'w')
-	file.write('p_recall,timestamp,time_elapsed,user_id,item_id,history_seen,history_correct,exponential,item_difficulty,user_ability\n')
+	file.write('outcome,timestamp,time_elapsed,student_id,module_id,module_type,history_seen,history_correct,exponential\n')
 	for i in range(len(list)):
-		file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ',' + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',' + str(list[i].history_seen) + ',' + str(list[i].history_correct) +',' + str(list[i].exponential_sum) + ',' + str(list[i].item_difficulty) + ',' + str(list[i].user_ability) + '\n')
+		file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ','  + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',assessment,' + str(list[i].history_seen) + ',' + str(list[i].history_correct) +',' + str(list[i].exponential_sum) + '\n')
 
 
 #arguments
 argparser = argparse.ArgumentParser(description='Convert student data into a list of item histories')
 argparser.add_argument('input_file', action="store", help='student data for reading')
+argparser.add_argument('-user', action="store", dest="user_index", type=int, default=None)
+argparser.add_argument('-module', action="store", dest="module_index", type=int, default=None)
+argparser.add_argument('-time', action="store", dest="time_index", type=int, default=None)
+argparser.add_argument('-outcome', action="store", dest="outcome_index", type=int, default=None)
+argparser.add_argument('-t', action="store_true", default=False, help='already have timestamp')
+argparser.add_argument('-correct', action="store", dest="correct_str", type=str, default='TRUE')
+
 args = argparser.parse_args()
 
-#generate IRT parameters
 
-outputHistories(args.input_file, 3, True)
-instancesToFile(outputTrainingInstances(args.input_file))
+instancesToFile(outputTrainingInstances(args.input_file, args.user_index, args.module_index, args.time_index, args.outcome_index, args.t))
 
 
 
