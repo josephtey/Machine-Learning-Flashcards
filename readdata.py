@@ -48,6 +48,8 @@ def readData(fname, user, module, outcome, timestamp):
 	item_id_table = {}
 	count_user = 0
 	count_item = 0
+
+	print 'reading data'
 	for i in range(1, len(raw_item_list)):
 		try:
 			#if there is such id
@@ -65,7 +67,6 @@ def readData(fname, user, module, outcome, timestamp):
 		raw_item_list[i][column_index['user_id']] = user_id_table[str(raw_item_list[i][column_index['user_id']])]
 		raw_item_list[i][column_index['module_id']] = item_id_table[str(raw_item_list[i][column_index['module_id']])]
 	
-	print raw_item_list
 	for i in range(1,len(raw_item_list)):
 		item_list.append(item(raw_item_list[i][column_index['user_id']], raw_item_list[i][column_index['module_id']], int(raw_item_list[i][column_index['timestamp']]), raw_item_list[i][column_index['outcome']]))
 	ultimate = []
@@ -106,7 +107,7 @@ def readData(fname, user, module, outcome, timestamp):
 						temp.append(item_list[y])
 					else:
 						flag = 1
-
+			
 			ultimate.append(itemHistory(temp))
 
 	return ultimate
@@ -153,6 +154,7 @@ def outputHistories(input_file, moreThan=0, writeFile=True, user_id=None, item_i
 def outputTrainingInstances(input_file, user, module, time, outcome, ts):
 	histories = readData(input_file, user,module,time,outcome)
 	instances = []
+	print 'getting features'
 	for i in range(len(histories)):
 		current_history = histories[i].listOfItems
 		history_correct = 0
@@ -174,7 +176,7 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts):
 
 			#create instance
 			instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo)
-			
+			print instance
 			#increments vars
 			if last_response == args.correct_str:
 				history_correct = history_correct + 1
@@ -195,6 +197,7 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts):
 	return instances
 
 def instancesToFile(list):
+	print 'writing data...'
 	file = open('data.txt', 'w')
 	file.write('outcome,timestamp,time_elapsed,student_id,module_id,module_type,history_seen,history_correct,exponential\n')
 	for i in range(len(list)):
