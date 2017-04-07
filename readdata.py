@@ -68,7 +68,7 @@ def readData(fname, user, module, outcome, timestamp):
 		raw_item_list[i][column_index['module_id']] = item_id_table[str(raw_item_list[i][column_index['module_id']])]
 	
 	for i in range(1,len(raw_item_list)):
-		item_list.append(item(raw_item_list[i][column_index['user_id']], raw_item_list[i][column_index['module_id']], int(raw_item_list[i][column_index['timestamp']]), raw_item_list[i][column_index['outcome']]))
+		item_list.append(item(raw_item_list[i][column_index['user_id']], raw_item_list[i][column_index['module_id']],raw_item_list[i][column_index['timestamp']], raw_item_list[i][column_index['outcome']]))
 	ultimate = []
 	interactions = []
 	for x in range(len(item_list)):
@@ -176,7 +176,6 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts):
 
 			#create instance
 			instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo)
-			print instance
 			#increments vars
 			if last_response == args.correct_str:
 				history_correct = history_correct + 1
@@ -217,7 +216,7 @@ argparser.add_argument('-correct', action="store", dest="correct_str", type=str,
 args = argparser.parse_args()
 
 
-instancesToFile(outputTrainingInstances(args.input_file, args.user_index, args.module_index, args.time_index, args.outcome_index, args.t))
+instancesToFile(outputTrainingInstances(args.input_file, args.user_index, args.module_index, args.outcome_index, args.time_index, args.t))
 
 
 
