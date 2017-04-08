@@ -3,6 +3,7 @@ import csv
 import datetime
 import math
 import codecs
+import pickle
 
 class item(object):
 	def __init__(self, user_id, item_id, time, outcome):
@@ -37,7 +38,7 @@ def changeToInt(text):
 	else: 
 		return 0
 
-def readData(fname, user, module, outcome, timestamp):
+def readData(fname, user, module, timestamp, outcome):
 	column_index = {'user_id':user, 'module_id':module, 'outcome': outcome, 'timestamp': timestamp}
 
 	file = open(fname, 'r')
@@ -69,8 +70,12 @@ def readData(fname, user, module, outcome, timestamp):
 		raw_item_list[i][column_index['module_id']] = item_id_table[str(raw_item_list[i][column_index['module_id']])]
 	print 'finished initial process'
 	for i in range(1,len(raw_item_list)):
+		#item list is ana array of ALL the interaction items
 		item_list.append(item(raw_item_list[i][column_index['user_id']], raw_item_list[i][column_index['module_id']],raw_item_list[i][column_index['timestamp']], raw_item_list[i][column_index['outcome']]))
+	
+	#final array of all item HISTORIES
 	ultimate = []
+	#existing combinations
 	interactions = []
 	for x in range(len(item_list)):
 		print str(x) + ' out of ' + str(len(item_list))
@@ -82,22 +87,25 @@ def readData(fname, user, module, outcome, timestamp):
 		user_id = item_list[x].user_id
 		item_id = item_list[x].item_id
 
-		#check if combo has not already existed
+		#if there has been existing combinations
 		if len(interactions) > 0:
+			#check if the current item's interaction is unique
 			for c in range(0, len(interactions)):
-				#print [[user_id, item_id], interactions[c]]
 				if [user_id, item_id] == interactions[c] and unique_combo == True:
 					unique_combo = False
-				if unique_combo == True:
-					interactions.append([user_id, item_id])	
-					temp.append(item_list[x])
+				
+			if unique_combo == True:
+				interactions.append([user_id, item_id])	
+				temp.append(item_list[x])
 
 		else:
 			interactions.append([user_id, item_id])	
 			temp.append(item_list[x])
 
+		#makes sure first interaction not added (it is already added)
 		flag = 0
 
+		#search and add the other interactions excluding the first one
 		if unique_combo == True:
 			for y in range(0, len(item_list)):
 				new_user_id = item_list[y].user_id
@@ -109,10 +117,12 @@ def readData(fname, user, module, outcome, timestamp):
 						temp.append(item_list[y])
 					else:
 						flag = 1
-
 			ultimate.append(itemHistory(temp))
 
+	with open('test.pkl', 'wb') as handle:
+		pickle.dump(ultimate, handle, protocol=pickle.HIGHEST_PROTOCOL)
 	return ultimate
+	
 def convertHistoryToList(itemHistory):
 	listOfItems = itemHistory.listOfItems
 	display = ''
@@ -153,11 +163,17 @@ def outputHistories(input_file, moreThan=0, writeFile=True, user_id=None, item_i
 				else:
 					print convertHistoryToList(histories[i])
 
-def outputTrainingInstances(input_file, user, module, time, outcome, ts):
-	histories = readData(input_file, user,module,time,outcome)
+def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled=None):
+	if pickled == None:
+		histories = readData(input_file, user, module,time,outcome)
+	else:
+		with open(pickled, 'rb') as handle:
+			histories = pickle.load(handle)
+	
 	instances = []
 	print 'getting features'
 	for i in range(len(histories)):
+		print str(i) + ' out of ' + str(len(histories))
 		current_history = histories[i].listOfItems
 		history_correct = 0
 		sequence = []
@@ -165,36 +181,35 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts):
 		expo_incre = 1.0
 		#need to fix first two responses in history correct
 		for x in range(0, len(current_history)):
-			user_id = current_history[x].user_id
-			item_id = current_history[x].item_id
-			last_response = current_history[x].outcome
-			if ts == False:
-				timestamp = str(convertTimeToTimestamp(current_history[x].time))
-				time_elapsed = str(convertTimeToTimestamp(current_history[x].time)-convertTimeToTimestamp(current_history[x-1].time))		
-			else:
-				timestamp = current_history[x].time
-				time_elapsed = current_history[x].time - current_history[x-1].time
-			history_seen = x
+			if current_history[x].time != 'US/Eastern':
+				user_id = current_history[x].user_id
+				item_id = current_history[x].item_id
+				last_response = current_history[x].outcome
+				if ts == False:
+					timestamp = str(convertTimeToTimestamp(current_history[x].time))
+					time_elapsed = str(convertTimeToTimestamp(current_history[x].time)-convertTimeToTimestamp(current_history[x-1].time))		
+				else:
+					timestamp = current_history[x].time
+					time_elapsed = current_history[x].time - current_history[x-1].time
+				history_seen = x
 
-			#create instance
-			instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo)
-			#increments vars
-			if last_response == args.correct_str:
-				history_correct = history_correct + 1
-				sequence.append(1)
-			else:
-				sequence.append(0)
-			if x>=2:
-				instances.append(instance)
+				#create instance
+				instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo)
+				#increments vars
+				if last_response == args.correct_str:
+					history_correct = history_correct + 1
+					sequence.append(1)
+				else:
+					sequence.append(0)
+				if x>=2:
+					instances.append(instance)
 
-			#calculate expo
-			expo = 0.0
-			for y in range(len(sequence)):
-				expo_incre = math.pow(0.8,y)
-				if list(reversed(sequence))[y] == 1:
-					expo += expo_incre
-
-
+				#calculate expo
+				expo = 0.0
+				for y in range(len(sequence)):
+					expo_incre = math.pow(0.8,y)
+					if list(reversed(sequence))[y] == 1:
+						expo += expo_incre
 	return instances
 
 def instancesToFile(list):
@@ -218,7 +233,7 @@ argparser.add_argument('-correct', action="store", dest="correct_str", type=str,
 args = argparser.parse_args()
 
 
-instancesToFile(outputTrainingInstances(args.input_file, args.user_index, args.module_index, args.outcome_index, args.time_index, args.t))
+instancesToFile(outputTrainingInstances(args.input_file, args.user_index, args.module_index, args.time_index, args.outcome_index, args.t))
 
 
 

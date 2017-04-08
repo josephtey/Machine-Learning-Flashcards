@@ -9,7 +9,15 @@ from lentil import models
 import filterdata
 from operator import itemgetter
 
+def savePickle(item, fname):
+    with open(fname, 'wb') as handle:
+        pickle.dump(item, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+def loadPickle(fname):
+    with open(fname, 'rb') as handle:
+        item = pickle.load(handle)
+    return item
+    
 def mnemosyneToTextfile(fname):
     with open(fname, 'rb') as f:
         history = pickle.load(f).data
@@ -51,7 +59,7 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
 
         data.append(temp)
 
-    df = pd.DataFrame(columns = cols, data = data)
+    df = pd.DataFrame(columns = cols, data = data).drop_duplicates()
     ih = datatools.InteractionHistory(df)
 
     return ih
@@ -76,12 +84,16 @@ def filteredFromHistory(history):
     index = list(map(itemgetter(0), filterdata.getData(history).items()))
     return index
 
+def filterHistory(df):
+    filtered = datatools.InteractionHistory(filterFromArray(filteredFromHistory(df), df))
+    return filtered
+    
 #unfiltered history
 radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
 mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
 spanish_hist = textToInteractionHistory('processed_data/spanish_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
+chinese_hist = textToInteractionHistory('processed_data/chinese_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
 
 #filtered histories
-filtered_spanish = datatools.InteractionHistory(filterFromArray(filteredFromHistory(spanish_hist.data), spanish_hist.data))
-
-
+filtered_spanish = loadPickle('pickles/spanish_filtered.pkl')
+filtered_chinese = loadPickle('pickles/chinese_filtered.pkl')
