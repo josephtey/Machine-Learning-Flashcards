@@ -44,7 +44,7 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
         temp.append(row[user_id])
         temp.append(row[item_id])
         temp.append('assessment')
-        temp.append(1)
+        temp.append(int(row['history_seen']))
         temp.append(row['history_seen'])
         temp.append(row['history_correct'])
         temp.append(row['exponential'])
@@ -76,12 +76,12 @@ def filteredFromHistory(history):
     index = list(map(itemgetter(0), filterdata.getData(history).items()))
     return index
 
+#unfiltered history
 radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
-#filtered_spanish = datatools.InteractionHistory(filterFromArray(filteredFromHistory(radical_hist.data), radical_hist.data))
-
 mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
-
 spanish_hist = textToInteractionHistory('processed_data/spanish_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
+
+#filtered histories
 filtered_spanish = datatools.InteractionHistory(filterFromArray(filteredFromHistory(spanish_hist.data), spanish_hist.data))
 
 

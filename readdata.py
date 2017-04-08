@@ -51,6 +51,7 @@ def readData(fname, user, module, outcome, timestamp):
 
 	print 'reading data'
 	for i in range(1, len(raw_item_list)):
+		print str(i) + ' out of ' + str(len(raw_item_list))
 		try:
 			#if there is such id
 			uid = user_id_table[raw_item_list[i][column_index['user_id']]]
@@ -63,15 +64,16 @@ def readData(fname, user, module, outcome, timestamp):
 		except:
 			count_item += 1
 			item_id_table[str(raw_item_list[i][column_index['module_id']])] = count_item
-		
+
 		raw_item_list[i][column_index['user_id']] = user_id_table[str(raw_item_list[i][column_index['user_id']])]
 		raw_item_list[i][column_index['module_id']] = item_id_table[str(raw_item_list[i][column_index['module_id']])]
-	
+	print 'finished initial process'
 	for i in range(1,len(raw_item_list)):
 		item_list.append(item(raw_item_list[i][column_index['user_id']], raw_item_list[i][column_index['module_id']],raw_item_list[i][column_index['timestamp']], raw_item_list[i][column_index['outcome']]))
 	ultimate = []
 	interactions = []
 	for x in range(len(item_list)):
+		print str(x) + ' out of ' + str(len(item_list))
 		#temp vars
 		temp = []
 		unique_combo = True
@@ -86,9 +88,9 @@ def readData(fname, user, module, outcome, timestamp):
 				#print [[user_id, item_id], interactions[c]]
 				if [user_id, item_id] == interactions[c] and unique_combo == True:
 					unique_combo = False
-			if unique_combo == True:
-				interactions.append([user_id, item_id])	
-				temp.append(item_list[x])
+				if unique_combo == True:
+					interactions.append([user_id, item_id])	
+					temp.append(item_list[x])
 
 		else:
 			interactions.append([user_id, item_id])	
@@ -101,13 +103,13 @@ def readData(fname, user, module, outcome, timestamp):
 				new_user_id = item_list[y].user_id
 				new_item_id = item_list[y].item_id
 
-				
+
 				if (new_user_id == user_id and new_item_id == item_id):
 					if flag == 1:
 						temp.append(item_list[y])
 					else:
 						flag = 1
-			
+
 			ultimate.append(itemHistory(temp))
 
 	return ultimate
