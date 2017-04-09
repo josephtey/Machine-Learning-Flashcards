@@ -8,6 +8,7 @@ from lentil import datatools
 from lentil import models
 import filterdata
 from operator import itemgetter
+import constants
 
 def savePickle(item, fname):
     with open(fname, 'wb') as handle:
@@ -35,7 +36,7 @@ def mnemosyneToTextfile(fname):
 
 def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correct):
     data = []
-    cols = ['outcome', 'timestamp','time_elapsed','student_id', 'module_id','module_type','timestep', 'history_seen', 'history_correct','exponential']
+    cols = ['outcome', 'timestamp','time_elapsed','student_id', 'module_id','module_type','timestep'] + constants.FEATURE_NAMES
     f = open(fname, 'rb')
 
     reader = csv.DictReader(f)
@@ -52,10 +53,9 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
         temp.append(row[user_id])
         temp.append(row[item_id])
         temp.append('assessment')
-        temp.append(int(row['history_seen']))
-        temp.append(row['history_seen'])
-        temp.append(row['history_correct'])
-        temp.append(row['exponential'])
+        temp.append(int(row['history_correct'])+int(row['history_wrong']))
+        for x in range(len(constants.FEATURE_NAMES)):
+            temp.append(row[constants.FEATURE_NAMES[x]])
 
         data.append(temp)
 
@@ -65,7 +65,8 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
     return ih
 
 def filterFromArray(index, df):
-    filtered = pd.DataFrame(columns=['outcome','timestamp','time_elapsed', 'student_id', 'module_id','module_type','timestep','history_seen','history_correct', 'exponential', 'time_since_previous_interaction','duration'])
+    cols = ['outcome','timestamp','time_elapsed', 'student_id', 'module_id','module_type','timestep'] + constants.FEATURE_NAMES + ['time_since_previous_interaction','duration']
+    filtered = pd.DataFrame(columns=cols)
     def comboIsInIndex(combo):
         x = False
         for i in range(len(index)):
@@ -74,7 +75,7 @@ def filterFromArray(index, df):
                 break;
         return x
     for i in range(len(df)):
-        print str(i) + ' out of ' + str(len(df))
+        #print str(i) + ' out of ' + str(len(df))
         combo = (df.iloc[i]['student_id'], df.iloc[i]['module_id'])
         if comboIsInIndex(combo) == True:
             filtered = filtered.append(df.iloc[i])
@@ -90,13 +91,14 @@ def filterHistory(df):
 
 def sigmoid(x):
   return 1 / (1 + math.exp(-x))
+ 
   
 #unfiltered history
-radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
-mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
-spanish_hist = textToInteractionHistory('processed_data/spanish_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
-chinese_hist = textToInteractionHistory('processed_data/chinese_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
+#radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
+#mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
+#spanish_hist = textToInteractionHistory('processed_data/spanish_data.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
+#chinese_hist = textToInteractionHistory('processed_data/chinese_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
 
 #filtered histories
-filtered_spanish = loadPickle('pickles/spanish_filtered.pkl')
-filtered_chinese = loadPickle('pickles/chinese_filtered.pkl')
+#filtered_spanish = loadPickle('pickles/spanish_filtered.pkl')
+#filtered_chinese = loadPickle('pickles/chinese_filtered.pkl')

@@ -72,7 +72,9 @@ def makeIRTDf(user_id, module_id):
 
 def getResults(data, num_folds=10, random_truncations=True):
     model_builders = {
-        'EFC' : train_efc
+        '1PL IRT' : train_onepl,
+        'EFC' : train_efc,
+        'LR' : train_logistic
     }
     results = evaluate.cross_validated_auc(model_builders,data,num_folds=num_folds,random_truncations=random_truncations)
     return results
@@ -81,10 +83,11 @@ def getACC(model, data, onepl=False):
     correct = 0
     wrong = 0
     y = list(data['outcome'])
-    #if onepl:
-    #    x = getIRTProbs(model, data)
-    #else:
-    x = model.assessment_pass_likelihoods(data)
+    print type(model)
+    if onepl:
+        x = getIRTProbs(model, data)
+    else:
+        x = model.assessment_pass_likelihoods(data)
     for i in range(len(y)):
         prediction = x[i]
         if round(prediction) == y[i]:
@@ -102,8 +105,25 @@ def getTrainingAUCs(models, history):
         aucs.append(evaluate.training_auc(models[i], history))
     return aucs
 
-#efc_model, onepl_model, twopl_model, logistic_model = trainAll(t.filtered_spanish.data)
-
-results = getResults(t.filtered_chinese, 4, False)
-
-
+def overallAccuracy(model_names, results):
+    training_aucs = []
+    validation_aucs = []
+    
+    for i in range(len(model_names)):
+        training_aucs.append(results.training_auc_mean(model_names[i]))
+        validation_aucs.append(results.validation_auc_mean(model_names[i]))
+    
+    training_string = ''
+    validation_string = ''
+    
+    for x in range(len(model_names)):
+        training_string = training_string + ' ' + model_names[x] + ': ' + str(training_aucs[x])
+        validation_string = validation_string + ' ' + model_names[x] + ': ' + str(validation_aucs[x])
+    
+    print training_string
+    print validation_string
+        
+        
+        
+        
+        

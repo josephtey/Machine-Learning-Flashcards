@@ -17,13 +17,28 @@ from lentil import evaluate
 
 import math
 import tools as t
+import constants
 
-Instance = namedtuple('Instance', 'p t fv h ts uid eid expo'.split())
+Instance = namedtuple('Instance', 'p t fv h ts uid eid'.split())
+
+def isfloat(x):
+    try:
+        a = float(x)
+    except ValueError:
+        return False
+    else:
+        return True
+
+def isint(x):
+    try:
+        a = float(x)
+        b = int(a)
+    except ValueError:
+        return False
+    else:
+        return a == b
 
 class EFCLinear(models.SkillModel):
-    """
-    :)
-    """
 
     def __init__(self, history, name_of_user_id='user_id'):
 
@@ -53,16 +68,15 @@ class EFCLinear(models.SkillModel):
             item_id = current_interaction['module_id']
             timestamp = int(current_interaction['timestamp'])
             user_id = current_interaction['student_id']
-            seen = int(current_interaction['history_seen'])
-            right = int(current_interaction['history_correct'])
-            expo = float(current_interaction['exponential'])
             
-            wrong = seen - right
             fv = []
-            fv.append(math.sqrt(1+right))
-            fv.append(math.sqrt(1+wrong))
-            fv.append(math.sqrt(1+expo))
-            inst = Instance(p, t, fv, h,timestamp, user_id, item_id, expo)
+            for x in range(len(constants.FEATURE_NAMES)):
+                if isfloat(current_interaction[constants.FEATURE_NAMES[x]]):
+                    fv.append(math.sqrt(1.0+float(current_interaction[constants.FEATURE_NAMES[x]])))
+                elif isint(current_interaction[constants.FEATURE_NAMES[x]]):
+                    fv.append(math.sqrt(1+int(current_interaction[constants.FEATURE_NAMES[x]]))) 
+            
+            inst = Instance(p, t, fv, h,timestamp, user_id, item_id)
             instances.append(inst)
         
         #return list of instances
@@ -84,6 +98,7 @@ class EFCLinear(models.SkillModel):
 
             #append inputs and outputs to training lists
             X_train.append(x[0])
+            
         self.clf = LinearRegression()
         self.clf.fit(X_train, Y_train)
 
@@ -94,6 +109,7 @@ class EFCLinear(models.SkillModel):
             h = math.pow(2, h_power)
             p = math.pow(2, (-time_elapsed)/h)
             return p
+        
         predictions = np.array([])
         instances = self.extract_features(df, correct=True)
         X_test = []
@@ -101,30 +117,15 @@ class EFCLinear(models.SkillModel):
             x = instances[i].fv
             x.append(instances[i].t)
             X_test.append(x)
-
         for i in range(len(X_test)):
-            prediction = predict(self.clf, X_test[i][0:3],X_test[i][3])
+            prediction = predict(self.clf, X_test[i][0:len(constants.FEATURE_NAMES)],X_test[i][len(constants.FEATURE_NAMES)])
             predictions = np.append(predictions, prediction)
 
         return predictions
 
 class LogisticRegressionModel(models.SkillModel):
-    """
-    Class for a memory model that predicts recall likelihood using basic statistics 
-    of previous review intervals and outcomes for a user-item pair
-    """
 
     def __init__(self, history, name_of_user_id='user_id'):
-        """
-        Initialize memory model object
-        :param pd.DataFrame history: Interaction log data. Must contain the 'tlast' column,
-            in addition to the other columns that belong to the dataframe in a
-            lentil.datatools.InteractionHistory object. If strength_model is not None, then
-            the history should also contain a column named by the strength_model (e.g., 'nreps' or
-            'deck'). Rows should be sorted in increasing order of timestamp.
-        :param str name_of_user_id: Name of column in history that stores user IDs (useful for
-            distinguishing between user IDs and user-item pair IDs)
-        """
 
         self.history = history[history['module_type']==datatools.AssessmentInteraction.MODULETYPE]
         self.name_of_user_id = name_of_user_id
@@ -133,21 +134,6 @@ class LogisticRegressionModel(models.SkillModel):
         self.data = None
 
     def extract_features(self, review_history, max_time=None):
-        """
-        Map a sequence of review intervals and outcomes to a fixed-length feature set
-        :param (np.array,np.array,np.array) review_history: A tuple of 
-            (intervals, outcomes, timestamps) where intervals are the milliseconds elapsed between 
-            consecutive reviews, outcomes are binary and timestamps are unix epochs. Note that 
-            there is one fewer element in the intervals array than in the outcomes and timestamps.
-        :param int max_time: Intervals that occur after this time should not be used to 
-            construct the feature set. Outcomes that occur at or after this time should not be
-            used in the feature set either.
-        :rtype: np.array
-        :return: A feature vector for the review history containing the length, first, last,
-            mean, min, max, range, and median (in that order) of the log-intervals, concatenated 
-            with the length, first, last, mean, min, max, range, and median (in that order) of the 
-            outcomes.
-        """
 
         intervals, outcomes, timestamps = review_history
 
@@ -177,11 +163,6 @@ class LogisticRegressionModel(models.SkillModel):
         return np.array(interval_feature_list + outcome_feature_list)
 
     def fit(self, C=1.0):
-        """
-        Estimate the coefficients of a logistic regression model with a bias term and an L2 penalty
-        
-        :param float C: Regularization constant. Inverse of regularization strength.
-        """
         
         self.data = {}
         for user_item_pair_id, group in self.history.groupby([self.name_of_user_id, 'module_id']):
@@ -203,13 +184,7 @@ class LogisticRegressionModel(models.SkillModel):
         self.clf.fit(X_train, Y_train)
 
     def assessment_pass_likelihoods(self, df):
-        """
-        Compute recall likelihoods given the learned coefficients
-        :param pd.DataFrame df: Interaction log data
-        :rtype: np.array
-        :return: An array of recall likelihoods
-        """
-       
         X = np.array([self.extract_features(self.data[(x[self.name_of_user_id], 
             x['module_id'])], max_time=x['timestamp']) for _, x in df.iterrows()])
         return self.clf.predict_proba(X)[:,1]    
+
