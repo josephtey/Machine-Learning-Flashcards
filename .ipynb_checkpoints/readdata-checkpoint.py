@@ -5,8 +5,6 @@ import math
 import codecs
 import pickle
 
-FEATURES = ['history_seen', 'history_correct', 'exponential']
-
 class item(object):
 	def __init__(self, user_id, item_id, time, outcome):
 	    self.user_id = user_id
@@ -19,7 +17,7 @@ class itemHistory(object):
 	    self.listOfItems = list
 
 class trainingInst(object):
-	def __init__(self, user_id, item_id, last_response, timestamp, time_elapsed, features):
+	def __init__(self, user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, exponential_sum):
 		cur_response = False
 		if last_response == args.correct_str:
 			cur_response = True
@@ -30,7 +28,9 @@ class trainingInst(object):
 		self.last_response = cur_response
 		self.timestamp = timestamp
 		self.time_elapsed = time_elapsed
-		self.features = features
+		self.history_seen = history_seen
+		self.history_correct = history_correct
+		self.exponential_sum = exponential_sum
 
 def changeToInt(text):
 	if text == 'CORRECT':
@@ -119,7 +119,7 @@ def readData(fname, user, module, timestamp, outcome):
 						flag = 1
 			ultimate.append(itemHistory(temp))
 
-	with open('history.pkl', 'wb') as handle:
+	with open('test.pkl', 'wb') as handle:
 		pickle.dump(ultimate, handle, protocol=pickle.HIGHEST_PROTOCOL)
 	return ultimate
 	
@@ -174,20 +174,12 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled
 	print 'getting features'
 	for i in range(len(histories)):
 		print str(i) + ' out of ' + str(len(histories))
-		
-		#general
 		current_history = histories[i].listOfItems
-		sequence = []
-		
-		#features
-		expo = 0.0
 		history_correct = 0
-		history_seen = 0
-		
-		#other
+		sequence = []
+		expo = 0.0
 		expo_incre = 1.0
-		   
-		features = [history_seen, history_correct, expo]
+		#need to fix first two responses in history correct
 		for x in range(0, len(current_history)):
 			if current_history[x].time != 'US/Eastern':
 				user_id = current_history[x].user_id
@@ -199,16 +191,11 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled
 				else:
 					timestamp = current_history[x].time
 					time_elapsed = current_history[x].time - current_history[x-1].time
-                
-                #create instance
-				instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, features)
-                
-                #FEATURES!
-                
-                #history seen
-				history_seen = x+1
-                
-                #history correct
+				history_seen = x
+
+				#create instance
+				instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, history_seen, history_correct, expo)
+				#increments vars
 				if last_response == args.correct_str:
 					history_correct = history_correct + 1
 					sequence.append(1)
@@ -228,10 +215,9 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled
 def instancesToFile(list):
 	print 'writing data...'
 	file = open('data.txt', 'w')
-	file.write('outcome,timestamp,time_elapsed,student_id,module_id,module_type,' + ','.join(FEATURES) + '\n')
+	file.write('outcome,timestamp,time_elapsed,student_id,module_id,module_type,history_seen,history_correct,exponential\n')
 	for i in range(len(list)):
-	    feature_string = ','.join(str(list[i].features[x]))
-		file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ','  + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',assessment,' + feature_string + '\n')
+		file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ','  + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',assessment,' + str(list[i].history_seen) + ',' + str(list[i].history_correct) +',' + str(list[i].exponential_sum) + '\n')
 
 
 #arguments

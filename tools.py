@@ -87,7 +87,10 @@ def filteredFromHistory(history):
 def filterHistory(df):
     filtered = datatools.InteractionHistory(filterFromArray(filteredFromHistory(df), df))
     return filtered
-    
+
+def sigmoid(x):
+  return 1 / (1 + math.exp(-x))
+  
 #unfiltered history
 radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
 mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
