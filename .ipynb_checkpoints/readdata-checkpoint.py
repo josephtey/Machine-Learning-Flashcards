@@ -180,8 +180,12 @@ def activationValue(old):
                 if time == 0:
                     recursive.append(x[len(output_delays)-1]**-(output_delays[time])) 
                 else:
-                    recursive.append((x[len(output_delays)-1] - (x[len(output_delays) - (time+1)]))**-(output_delays[time]))  
-
+                    try:
+                        recursive.append((x[len(output_delays)-1] - (x[len(output_delays) - (time+1)]))**-(output_delays[time]))
+                    except:
+                        recursive.append(x[len(output_delays)-1]**-(output_delays[time])) 
+            
+            
             act = math.log(sum(recursive))
             output_act.append(act)
     return output_act[-1]
@@ -239,7 +243,10 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled
                     activation = activationValue(activation_sequence)
                 else:
                     activation_sequence.append(0)
-                    
+                
+                #print activation
+                #print activation_sequence
+                #print time_sequence
         #create instance
                 instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, features)
                 if x >= 1:
@@ -299,8 +306,8 @@ def instancesToFile(list, fname):
         feature_string = ','.join([str(x) for x in list[i].features])
         file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ','  + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',assessment,' + feature_string + '\n')
 
-def getTrainingInstances(file, fname, user, module, time, outcome):
-    instancesToFile(outputTrainingInstances(file, user, module, time, outcome, False), fname)
+def getTrainingInstances(file, fname, user, module, time, outcome, pickled=None):
+    instancesToFile(outputTrainingInstances(file, user, module, time, outcome, ts=False, pickled=pickled), fname)
 
 #arguments
 # argparser = argparse.ArgumentParser(description='Convert student data into a list of item histories')

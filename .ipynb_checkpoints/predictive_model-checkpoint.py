@@ -72,9 +72,13 @@ class EFCLinear(models.SkillModel):
             fv = []
             for x in range(len(constants.FEATURE_NAMES)):
                 if isfloat(current_interaction[constants.FEATURE_NAMES[x]]):
-                    fv.append(math.sqrt(1.0+float(current_interaction[constants.FEATURE_NAMES[x]])))
+                    if constants.FEATURE_NAMES[x] == 'activation':
+                        fv.append(float(current_interaction[constants.FEATURE_NAMES[x]]))
+                    else:
+                        fv.append(math.sqrt(1.0+float(current_interaction[constants.FEATURE_NAMES[x]])))
                 elif isint(current_interaction[constants.FEATURE_NAMES[x]]):
                     fv.append(math.sqrt(1+int(current_interaction[constants.FEATURE_NAMES[x]]))) 
+            
             
             inst = Instance(p, t, fv, h,timestamp, user_id, item_id)
             instances.append(inst)

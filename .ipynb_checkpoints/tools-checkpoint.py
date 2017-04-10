@@ -3,6 +3,7 @@ import numpy as np
 import csv
 import pickle
 import argparse
+import math
 
 from lentil import datatools
 from lentil import models
@@ -40,7 +41,8 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
     f = open(fname, 'rb')
 
     reader = csv.DictReader(f)
-    for i, row in enumerate(reader):
+    for i, row in enumerate(reader): 
+        #print str(i) + ' out of ' + str(len(df))
         temp = []
         p = False
         if row[outcome] == correct:
@@ -66,7 +68,9 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
 
 def filterFromArray(index, df):
     cols = ['outcome','timestamp','time_elapsed', 'student_id', 'module_id','module_type','timestep'] + constants.FEATURE_NAMES + ['time_since_previous_interaction','duration']
+    
     filtered = pd.DataFrame(columns=cols)
+    
     def comboIsInIndex(combo):
         x = False
         for i in range(len(index)):
@@ -74,11 +78,12 @@ def filterFromArray(index, df):
                 x = True
                 break;
         return x
-    for i in range(len(df)):
-        #print str(i) + ' out of ' + str(len(df))
+    
+    for i in range(len(df)):            
         combo = (df.iloc[i]['student_id'], df.iloc[i]['module_id'])
         if comboIsInIndex(combo) == True:
             filtered = filtered.append(df.iloc[i])
+            
     return filtered
 
 def filteredFromHistory(history):
@@ -89,10 +94,18 @@ def filterHistory(df):
     filtered = datatools.InteractionHistory(filterFromArray(filteredFromHistory(df), df))
     return filtered
 
+def splitHistory(ih):
+    #get interaction history
+    splitPoint = int(round((float(ih.num_students())/100.0)*20.0))
+    
+    train_df = ih.data[ih.data['student_id'].astype(int) <= splitPoint]
+    test_df = ih.data[ih.data['student_id'].astype(int) > splitPoint]
+    
+    return datatools.InteractionHistory(train_df), datatools.InteractionHistory(test_df)
+    
 def sigmoid(x):
-  return 1 / (1 + math.exp(-x))
- 
-  
+      return 1 / (1 + math.exp(-x))
+
 #unfiltered history
 #radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
 #mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
