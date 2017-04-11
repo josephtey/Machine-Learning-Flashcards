@@ -17,6 +17,7 @@ from lentil import evaluate
 
 import math
 import tools as t
+import evaluate as e
 import constants
 
 Instance = namedtuple('Instance', 'p t fv h ts uid eid'.split())
@@ -63,7 +64,7 @@ class EFCLinear(models.SkillModel):
         for i in range(len(df)):
             current_interaction = df.iloc[i]
             p = pclip(float(current_interaction['outcome']))
-            t = float(current_interaction['time_elapsed'])
+            t = (float(current_interaction['time_elapsed']))
             h = hclip(-t/(math.log(p, 2)))
             item_id = current_interaction['module_id']
             timestamp = int(current_interaction['timestamp'])
@@ -105,14 +106,14 @@ class EFCLinear(models.SkillModel):
             
         self.clf = LinearRegression()
         self.clf.fit(X_train, Y_train)
-
-
-    def assessment_pass_likelihoods(self, df):
-        def predict(model, input, time_elapsed):
+        
+    def predict(self, model, input, time_elapsed):
             h_power = model.predict(np.array(input).reshape(1,-1))
             h = math.pow(2, h_power)
             p = math.pow(2, (-time_elapsed)/h)
             return p
+        
+    def assessment_pass_likelihoods(self, df):
         
         predictions = np.array([])
         instances = self.extract_features(df, correct=True)
@@ -122,73 +123,53 @@ class EFCLinear(models.SkillModel):
             x.append(instances[i].t)
             X_test.append(x)
         for i in range(len(X_test)):
-            prediction = predict(self.clf, X_test[i][0:len(constants.FEATURE_NAMES)],X_test[i][len(constants.FEATURE_NAMES)])
+            prediction = self.predict(self.clf, X_test[i][0:len(constants.FEATURE_NAMES)],X_test[i][len(constants.FEATURE_NAMES)])
             predictions = np.append(predictions, prediction)
 
         return predictions
 
+    
 class LogisticRegressionModel(models.SkillModel):
 
     def __init__(self, history, name_of_user_id='user_id'):
 
         self.history = history[history['module_type']==datatools.AssessmentInteraction.MODULETYPE]
         self.name_of_user_id = name_of_user_id
-
         self.clf = None
-        self.data = None
-
-    def extract_features(self, review_history, max_time=None):
-
-        intervals, outcomes, timestamps = review_history
-
-        if max_time is not None:
-            # truncate the sequences 
-            i = 1
-            while i < len(timestamps) and timestamps[i] <= max_time:
-                i += 1
-            outcomes = outcomes[:i-1]
-            intervals = intervals[:i-1]
-
-        if len(intervals) == 0:
-            interval_feature_list = [0] * 8
-        else:
-            intervals = np.log(np.array(intervals)+1)
-            interval_feature_list = [len(intervals), intervals[0], intervals[-1], \
-                    np.mean(intervals), min(intervals), max(intervals), \
-                    max(intervals)-min(intervals), sorted(intervals)[len(intervals) // 2]]
-
-        if len(outcomes) == 0:
-            outcome_feature_list = [0] * 8
-        else:
-            outcome_feature_list = [len(outcomes), outcomes[0], outcomes[-1], \
-                    np.mean(outcomes), min(outcomes), max(outcomes), \
-                    max(outcomes)-min(outcomes), sorted(outcomes)[len(outcomes) // 2]]
-
-        return np.array(interval_feature_list + outcome_feature_list)
-
-    def fit(self, C=1.0):
+    
+    def get_features(self, df):
+        fv = []
+        for i in range(len(constants.FEATURE_NAMES)):
+            feature = df[constants.FEATURE_NAMES[i]]
+            if isfloat(feature):
+                fv.append(float(feature))
+            elif isint(feature):
+                fv.append(int(feature))
+        return fv
         
-        self.data = {}
-        for user_item_pair_id, group in self.history.groupby([self.name_of_user_id, 'module_id']):
-            if len(group) <= 1:
-                continue
-            timestamps = np.array(group['timestamp'].values)
-            intervals = timestamps[1:] - timestamps[:-1]
-            outcomes = np.array(group['outcome'].apply(lambda x: 1 if x else 0).values)
-            self.data[user_item_pair_id] = (intervals, outcomes, timestamps)
-
-        X_train = np.array([self.extract_features(
-            (intervals[:i+1], outcomes[:i+1], timestamps[:i+1])) \
-                for intervals, outcomes, timestamps in self.data.itervalues() \
-                for i in xrange(len(intervals))])
-        Y_train = np.array([x for intervals, outcomes, timestamps in self.data.itervalues() \
-                for x in outcomes[1:]])
-
+    def fit(self, C=1.0):
+        X_train = []
+        Y_train = []
+        for x in range(len(self.history)):
+            X_train.append(self.get_features(self.history.iloc[x]))
+            Y_train.append(self.history.iloc[x]['outcome'])
+        
         self.clf = LogisticRegression(C=C)
         self.clf.fit(X_train, Y_train)
-
+        
+    def predict(self, inputs):
+        output = self.clf.predict_proba(np.array(inputs).reshape(1,-1))[:,1]
+        return output
+    
     def assessment_pass_likelihoods(self, df):
-        X = np.array([self.extract_features(self.data[(x[self.name_of_user_id], 
-            x['module_id'])], max_time=x['timestamp']) for _, x in df.iterrows()])
-        return self.clf.predict_proba(X)[:,1]    
+        inputs = []
+        for i in range(len(df)):
+            inputs.append(self.get_features(self.history.iloc[i]))
+            
+        return self.clf.predict_proba(inputs)[:, 1]   
 
+    
+    
+    
+    
+    

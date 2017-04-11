@@ -8,6 +8,8 @@ import pandas as pd
 import tools as t
 import predictive_model as m
 import math
+import constants
+from sklearn.metrics import roc_auc_score
 
 #Train Models
 def train_efc(history, filtered_history, split_history=None):
@@ -122,7 +124,117 @@ def overallAccuracy(model_names, results):
     
     print training_string
     print validation_string
+    
+def online_prediction_acc(model, all_data, train_data, test_data):
+    #for auc
+    preds = []
+    y = []
+    
+    #data
+    test_students = test_data._student_idx
+    test_modules = test_data._assessment_idx
+    train_modules = train_data._assessment_idx
+    all_students = all_data._student_idx
+    all_modules = all_data._assessment_idx
+    
+    #functions
+    def getCurrentStudent(index, students):
+        return students.keys()[students.values().index(index)]
+
+    def getModulesFromStudents(student_id):
+        idx = all_students.keys()[all_students.values().index(student_id)]
+        a = list(all_data.data[all_data.data['student_id'] == idx]['module_id'].drop_duplicates())
+        a = [int(i) for i in a]
+        a.sort()
+
+        return a
         
+    #accuracy
+    correct = 0
+    wrong = 0
+    
+    if model == 'irt':
+        #IRT evaluation
+        onepl_model = train_onepl(train_data.data, train_data.data)
+        initial_difficulties = getIRTParameters(onepl_model)[1]
+
+        for i in range(test_data.num_students()-1):
+            current_student_history = test_data.data[test_data.data['student_id'] == getCurrentStudent(i,test_students)]
+            print 'current student: ' + getCurrentStudent(i,test_students) + ', with ' + str(len(current_student_history)) +' interactions.'
+            if i > 0:
+                print float(correct)/(float(correct)+float(wrong))
+
+            for x in range(len(current_student_history)):
+                #predict (return prob)
+                prob = 0
+                outcome = current_student_history.iloc[x]['outcome']
+                if x < 2:
+                    prob = 0
+                else:
+                    df = pd.concat([train_data.data, current_student_history[0:x]])
+                    onepl_model = train_onepl(None, df)  
+                    try:
+                        difficulty = initial_difficulties[train_modules[current_student_history.iloc[x]['module_id']]]
+                    except:
+                        difficulty = 0.3
+
+                    student_ids = onepl_model.idx_of_student_id
+                    ability = getIRTParameters(onepl_model)[0][student_ids[getCurrentStudent(i,test_students)]]
+                    #print ability, difficulty
+                    prob = 1 / (1 + math.exp(-(ability + difficulty)))
+                
+                preds.append(prob)
+                y.append(int(outcome))
+                if round(prob) == outcome:
+                    correct += 1
+                else: 
+                    wrong += 1  
+    else:
+        #Logistic/EFC evaluation
+        if model == 'efc':
+            clf = train_efc(train_data.data, train_data.data)  
+        elif model == 'logistic':
+            clf = train_logistic(train_data.data, train_data.data)
+
+        for i in range(test_data.num_students()-1):
+            current_student_history = test_data.data[test_data.data['student_id'] == getCurrentStudent(i,test_students)]
+            #print 'current student: ' + getCurrentStudent(i,test_students) + ', with ' + str(len(current_student_history)) +' interactions.'
+            #if i > 0:
+                #print float(correct)/(float(correct)+float(wrong))
+
+            for x in range(len(current_student_history)):
+                #predict (return prob)
+                outcome = current_student_history.iloc[x]['outcome']
+                time_elapsed = current_student_history.iloc[x]['time_elapsed']
+                fv = []
+                for c in range(len(constants.FEATURE_NAMES)):
+                    feature = current_student_history.iloc[x][constants.FEATURE_NAMES[c]]
+                    if m.isfloat(feature):
+                        fv.append(float(feature))
+                    elif m.isint(feature):
+                        fv.append(int(feature))
+                        
+                if model == 'efc':
+                    prob = clf.predict(clf.clf, fv, time_elapsed)
+                elif model == 'logistic': 
+                    prob = clf.predict(fv)
+                
+                #auc
+                preds.append(prob)
+                y.append(int(outcome))
+                
+                #evaluate
+                if round(prob) == outcome:
+                    correct += 1
+                else: 
+                    wrong += 1 
+                    
+    print 'ACC: ' + str(float(correct)/(float(correct)+float(wrong))) + ', with ' + str(correct) + ' correct and ' + str(wrong) + 'wrong.'
+    
+    print 'AUC: ' + str(roc_auc_score(y, preds))
+   
+    return float(correct)/(float(correct)+float(wrong)), correct, wrong
+
         
         
         

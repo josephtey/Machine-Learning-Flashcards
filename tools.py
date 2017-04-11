@@ -42,7 +42,6 @@ def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correc
 
     reader = csv.DictReader(f)
     for i, row in enumerate(reader): 
-        #print str(i) + ' out of ' + str(len(df))
         temp = []
         p = False
         if row[outcome] == correct:
@@ -79,7 +78,9 @@ def filterFromArray(index, df):
                 break;
         return x
     
-    for i in range(len(df)):            
+    for i in range(len(df)):  
+        if i % 1000 == 0:
+            print str(i) +' out of ' + str(len(df))
         combo = (df.iloc[i]['student_id'], df.iloc[i]['module_id'])
         if comboIsInIndex(combo) == True:
             filtered = filtered.append(df.iloc[i])
@@ -96,10 +97,10 @@ def filterHistory(df):
 
 def splitHistory(ih):
     #get interaction history
-    splitPoint = int(round((float(ih.num_students())/100.0)*20.0))
+    splitPoint = int(round((float(ih.num_students())/100.0)*70.0))
     
-    train_df = ih.data[ih.data['student_id'].astype(int) <= splitPoint]
-    test_df = ih.data[ih.data['student_id'].astype(int) > splitPoint]
+    train_df = ih.data[ih.data['student_id'].astype(int) > splitPoint]
+    test_df = ih.data[ih.data['student_id'].astype(int) <= splitPoint]
     
     return datatools.InteractionHistory(train_df), datatools.InteractionHistory(test_df)
     
