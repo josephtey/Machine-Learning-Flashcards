@@ -10,13 +10,38 @@ import predictive_model as m
 import math
 import constants
 from sklearn.metrics import roc_auc_score
+from autograd import grad
+
+import plotly
+
+import plotly.plotly as py
+import plotly.graph_objs as go 
+
+plotly.tools.set_credentials_file(username='tisijoe', api_key='kv9QRxjplURljsrq6ppg')
+
+
 
 #Train Models
 def train_efc(history, filtered_history, split_history=None):
-    model = m.EFCLinear(filtered_history, name_of_user_id='student_id')
+    model = m.EFCLinear(filtered_history, name_of_user_id='student_id',omit_strength=False)
     model.fit()
     
     return model
+
+
+def train_efc_2(history, filtered_history, split_history=None):
+    model = m.EFCModel(
+        filtered_history, strength_model='history_correct', using_delay=True, 
+        using_global_difficulty=True, debug_mode_on=True,
+        content_features=None, using_item_bias=True)
+    model.fit(
+        learning_rate=0.1, 
+        #learning_rate=(1 if not using_global_difficulty else 0.1), 
+        ftol=1e-6, max_iter=10000,
+        coeffs_regularization_constant=1e-6, 
+        item_bias_regularization_constant=1e-6)
+    return model
+
 
 def train_onepl(history, filtered_history, split_history=None):
     model = models.OneParameterLogisticModel(filtered_history, select_regularization_constant=True, name_of_user_id='student_id')
@@ -33,6 +58,16 @@ def train_twopl(history, filtered_history, split_history=None):
 def train_logistic(history, filtered_history, split_history=None):
     model = m.LogisticRegressionModel(filtered_history, name_of_user_id='student_id')
     model.fit()
+    
+    return model
+
+def train_percentage(history, filtered_history, split_history=None):
+    model = m.PercentageModel(filtered_history, name_of_user_id='student_id')
+    
+    return model
+
+def train_random(history, filtered_history, split_history=None):
+    model = m.RandomModel(filtered_history, name_of_user_id='student_id')
     
     return model
 
@@ -72,13 +107,15 @@ def makeIRTDf(user_id, module_id):
     
 #Evaluate Functions
 
-def getResults(data, num_folds=10, random_truncations=True):
+def getResults(data, num_folds=10, random_truncations=True, test_p=0.2):
     model_builders = {
-        '1PL IRT' : train_onepl,
         'EFC' : train_efc,
-        'LR' : train_logistic
+        'LR' : train_logistic,
+        'IRT': train_onepl,
+        'PERC': train_percentage,
+        'RAND': train_random
     }
-    results = evaluate.cross_validated_auc(model_builders,data,num_folds=num_folds,random_truncations=random_truncations)
+    results = evaluate.cross_validated_auc(model_builders,data,num_folds=num_folds,random_truncations=random_truncations,size_of_test_set=test_p)
     return results
     
 def getACC(model, data, onepl=False):
@@ -107,25 +144,44 @@ def getTrainingAUCs(models, history):
         aucs.append(evaluate.training_auc(models[i], history))
     return aucs
 
-def overallAccuracy(model_names, results):
+def overallAccuracy(model_names, results, type, dataset):
     training_aucs = []
     validation_aucs = []
+    test_aucs = []
+    test_accs = []
+    
     
     for i in range(len(model_names)):
         training_aucs.append(results.training_auc_mean(model_names[i]))
         validation_aucs.append(results.validation_auc_mean(model_names[i]))
+        test_aucs.append(results.test_auc(model_names[i]))
+        test_accs.append(results.test_acc(model_names[i]))
+
+    #select which property to show
+    if type == 'AUC':
+        data = test_aucs
+    elif type == 'ACC':
+        data = test_accs
+        
+    low = min(data)-0.02
+    high = max(data)+0.02
     
-    training_string = ''
-    validation_string = ''
+    data = [go.Bar(
+            x=model_names,
+            y=data
+    )]
+    layout = {
+            'xaxis': {'title': 'Models'},
+            'yaxis': {'title': type, 'range': [low, high]},
+            'barmode': 'relative',
+            'title': 'Bar Graph: ' + type + ' of different models on ' + dataset + ' dataset.'
+    };
+
+    plotly.offline.plot({'data': data, 'layout': layout}, filename='basic-bar.html')
+
+        
     
-    for x in range(len(model_names)):
-        training_string = training_string + ' ' + model_names[x] + ': ' + str(training_aucs[x])
-        validation_string = validation_string + ' ' + model_names[x] + ': ' + str(validation_aucs[x])
-    
-    print training_string
-    print validation_string
-    
-def online_prediction_acc(model, all_data, train_data, test_data):
+def online_prediction_acc(model, all_data, train_data, test_data, trained=None):
     #for auc
     preds = []
     y = []
@@ -163,6 +219,7 @@ def online_prediction_acc(model, all_data, train_data, test_data):
             print 'current student: ' + getCurrentStudent(i,test_students) + ', with ' + str(len(current_student_history)) +' interactions.'
             if i > 0:
                 print float(correct)/(float(correct)+float(wrong))
+                print roc_auc_score(y, preds)
 
             for x in range(len(current_student_history)):
                 #predict (return prob)
@@ -191,16 +248,12 @@ def online_prediction_acc(model, all_data, train_data, test_data):
                     wrong += 1  
     else:
         #Logistic/EFC evaluation
-        if model == 'efc':
-            clf = train_efc(train_data.data, train_data.data)  
-        elif model == 'logistic':
-            clf = train_logistic(train_data.data, train_data.data)
 
         for i in range(test_data.num_students()-1):
             current_student_history = test_data.data[test_data.data['student_id'] == getCurrentStudent(i,test_students)]
-            #print 'current student: ' + getCurrentStudent(i,test_students) + ', with ' + str(len(current_student_history)) +' interactions.'
+            
             #if i > 0:
-                #print float(correct)/(float(correct)+float(wrong))
+                #print roc_auc_score(y, preds)
 
             for x in range(len(current_student_history)):
                 #predict (return prob)
@@ -215,12 +268,16 @@ def online_prediction_acc(model, all_data, train_data, test_data):
                         fv.append(int(feature))
                         
                 if model == 'efc':
-                    prob = clf.predict(clf.clf, fv, time_elapsed)
+                    prob = trained.predict(trained.clf, fv, time_elapsed)
                 elif model == 'logistic': 
-                    prob = clf.predict(fv)
+                    fv.append(time_elapsed) 
+                elif model == 'percentage':
+                    prob = trained.predict(current_student_history.iloc[x])
+                elif model == 'random':
+                    prob = trained.predict()
                 
                 #auc
-                preds.append(prob)
+                preds.append(round(prob))
                 y.append(int(outcome))
                 
                 #evaluate
@@ -229,6 +286,7 @@ def online_prediction_acc(model, all_data, train_data, test_data):
                 else: 
                     wrong += 1 
                     
+    print sum(preds)/float(len(preds))
     print 'ACC: ' + str(float(correct)/(float(correct)+float(wrong))) + ', with ' + str(correct) + ' correct and ' + str(wrong) + 'wrong.'
     
     print 'AUC: ' + str(roc_auc_score(y, preds))

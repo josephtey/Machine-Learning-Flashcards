@@ -20,19 +20,21 @@ def loadPickle(fname):
         item = pickle.load(handle)
     return item
     
-def mnemosyneToTextfile(fname):
-    with open(fname, 'rb') as f:
+def mnemosyneToTextfile(input_file, output_file):
+    with open(input_file, 'rb') as f:
         history = pickle.load(f).data
     
-    columns = ['module_id','outcome','timestamp','duration','timestep','module_type','user_id']
-    file = open('mnemosyne.txt', 'w')
+    columns = ['user_id','timestamp','module_id','outcome']
+    file = open(output_file, 'w')
     file.write(','.join(columns)+'\n')
     for i in range(len(history)):
+        print str(i) + ' out of ' + str(len(history))
         line = ''
         for x in range(len(columns)):
             line = line + str(history.iloc[i][columns[x]])
             if x != (len(columns)-1):
                 line += ","
+                
         file.write(line + '\n')
 
 def textToInteractionHistory(fname, timestamp, user_id, item_id, outcome, correct):
@@ -95,24 +97,19 @@ def filterHistory(df):
     filtered = datatools.InteractionHistory(filterFromArray(filteredFromHistory(df), df))
     return filtered
 
-def splitHistory(ih):
+def splitHistory(ih, split):
     #get interaction history
-    splitPoint = int(round((float(ih.num_students())/100.0)*70.0))
+    splitPoint = int(round((float(ih.num_students())/100.0)*float(split)))
     
-    train_df = ih.data[ih.data['student_id'].astype(int) > splitPoint]
-    test_df = ih.data[ih.data['student_id'].astype(int) <= splitPoint]
-    
+    train_df = ih.data[ih.data['student_id'].astype(int) <= splitPoint]
+    test_df = ih.data[ih.data['student_id'].astype(int) > splitPoint]
+
     return datatools.InteractionHistory(train_df), datatools.InteractionHistory(test_df)
     
 def sigmoid(x):
       return 1 / (1 + math.exp(-x))
 
-#unfiltered history
-#radical_hist = textToInteractionHistory('processed_data/radical_irt_2.txt', 'timestamp', 'user_id','item_id','p_recall', '0.75')
-#mnemo_hist = textToInteractionHistory('processed_data/mnemosyne_withfeatures.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
-#spanish_hist = textToInteractionHistory('processed_data/spanish_data.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
-#chinese_hist = textToInteractionHistory('processed_data/chinese_processed.txt', 'timestamp', 'student_id','module_id','outcome', 'True')
-
-#filtered histories
-#filtered_spanish = loadPickle('pickles/spanish_filtered.pkl')
-#filtered_chinese = loadPickle('pickles/chinese_filtered.pkl')
+def getTrueFalseDistribution(df):
+    data = list(df['outcome'])
+    data = [int(i) for i in data]
+    return 'True/Total: ' + str(float(sum(data))/float(len(data)))

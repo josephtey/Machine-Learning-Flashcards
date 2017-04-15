@@ -33,7 +33,7 @@ class trainingInst(object):
         self.features = features
 
 def changeToInt(text):
-    if text == 'CORRECT':
+    if text == 'True':
         return 1
     else:
         return 0
@@ -78,7 +78,8 @@ def readData(fname, user, module, timestamp, outcome):
     #existing combinations
     interactions = []
     for x in range(len(item_list)):
-        #print str(x) + ' out of ' + str(len(item_list))
+        if x % 1000 == 0:
+            print str(x) + ' out of ' + str(len(item_list))
         #temp vars
         temp = []
         unique_combo = True
@@ -118,7 +119,6 @@ def readData(fname, user, module, timestamp, outcome):
                     else:
                         flag = 1
             ultimate.append(itemHistory(temp))
-
     with open('history.pkl', 'wb') as handle:
         pickle.dump(ultimate, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return ultimate
@@ -233,22 +233,18 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled
                     time_elapsed = str(convertTimeToTimestamp(current_history[x].time)-convertTimeToTimestamp(current_history[x-1].time))
                 else:
                     timestamp = current_history[x].time
-                    time_elapsed = current_history[x].time - current_history[x-1].time
+                    time_elapsed = str(int(current_history[x].time) - int(current_history[x-1].time))
                     
         #activation
                 if x>= 1:   
                     time_sequence.append(time_elapsed)
-                if len(time_sequence) >= 1:
-                    activation_sequence.append(sum([int(i) for i in time_sequence]))  
-                    activation = activationValue(activation_sequence)
-                else:
-                    activation_sequence.append(0)
-                
-                #print activation
-                #print activation_sequence
-                #print time_sequence
+                #if len(time_sequence) >= 1:
+                #    activation_sequence.append(sum([int(i) for i in time_sequence]))  
+                #    activation = activationValue(activation_sequence)
+                #else:
+                #    activation_sequence.append(0)
         #create instance
-                instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, features)
+                instance = trainingInst(user_id, item_id, last_response, timestamp, time_elapsed, features, correct=correct)
                 if x >= 1:
                     instances.append(instance)
                 
@@ -306,8 +302,8 @@ def instancesToFile(list, fname):
         feature_string = ','.join([str(x) for x in list[i].features])
         file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ','  + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',assessment,' + feature_string + '\n')
 
-def getTrainingInstances(file, fname, user, module, time, outcome, pickled=None):
-    instancesToFile(outputTrainingInstances(file, user, module, time, outcome, ts=False, pickled=pickled), fname)
+def getTrainingInstances(file, fname, user, module, time, outcome,ts, pickled=None, correct='CORRECT'):
+    instancesToFile(outputTrainingInstances(file, user, module, time, outcome, ts=ts, pickled=pickled, correct=correct), fname)
 
 #arguments
 # argparser = argparse.ArgumentParser(description='Convert student data into a list of item histories')
