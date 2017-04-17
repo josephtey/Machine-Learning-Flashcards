@@ -113,3 +113,12 @@ def getTrueFalseDistribution(df):
     data = list(df['outcome'])
     data = [int(i) for i in data]
     return 'True/Total: ' + str(float(sum(data))/float(len(data)))
+
+def getPropertiesOfData(ih, data_name):
+    print data_name
+    print str(ih.num_students()) + ' students'
+    print str(ih.num_assessments()) + ' assessments'
+    print str(len(ih.data)) + ' interactions'
+    print getTrueFalseDistribution(ih.data) + '\n'
+
+

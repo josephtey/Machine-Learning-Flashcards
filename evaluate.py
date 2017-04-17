@@ -144,11 +144,12 @@ def getTrainingAUCs(models, history):
         aucs.append(evaluate.training_auc(models[i], history))
     return aucs
 
-def overallAccuracy(model_names, results, type, dataset):
+def overallAccuracy(model_names, results, type, dataset, plot_boxes = False):
     training_aucs = []
     validation_aucs = []
     test_aucs = []
     test_accs = []
+    validation_error = []
     
     
     for i in range(len(model_names)):
@@ -156,20 +157,25 @@ def overallAccuracy(model_names, results, type, dataset):
         validation_aucs.append(results.validation_auc_mean(model_names[i]))
         test_aucs.append(results.test_auc(model_names[i]))
         test_accs.append(results.test_acc(model_names[i]))
+        validation_error.append(results.validation_auc_stderr(model_names[i]))
 
     #select which property to show
     if type == 'AUC':
         data = test_aucs
     elif type == 'ACC':
         data = test_accs
+    elif type == "ERROR":
+        data = validation_error
         
     low = min(data)-0.02
     high = max(data)+0.02
     
     data = [go.Bar(
             x=model_names,
-            y=data
+            y=data,
+            marker = dict(color=['rgba(222,45,38,0.8)', 'rgba(204,204,204,1)','rgba(204,204,204,1)', 'rgba(204,204,204,1)'])
     )]
+    
     layout = {
             'xaxis': {'title': 'Models'},
             'yaxis': {'title': type, 'range': [low, high]},
@@ -178,6 +184,26 @@ def overallAccuracy(model_names, results, type, dataset):
     };
 
     plotly.offline.plot({'data': data, 'layout': layout}, filename='basic-bar.html')
+    
+    traces = []
+    for i in range(len(model_names)):
+        if model_names[i] != 'PERC':
+            trace = go.Box(
+                y=[training_aucs[i], validation_aucs[i]],
+                name=model_names[i]
+            )
+            traces.append(trace)
+    
+    layout = {
+            'xaxis': {'title': 'Models'},
+            'yaxis': {'title': 'AUC', 'range': [0.4, 0.9]},
+            'title': 'Validation + Training AUCs'
+    };
+    
+    data = traces
+    
+    if plot_boxes:
+        plotly.offline.plot({'data': data, 'layout': layout})
 
         
     
