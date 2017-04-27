@@ -56,15 +56,13 @@ def hclip(h):
 
 class EFCLinear(models.SkillModel):
 
-    def __init__(self, history, name_of_user_id='user_id', omit_strength=False, omit_delay=False):
-
-
+    def __init__(self, history, name_of_user_id='user_id', using_delay=True, strength_var='ml'):
         self.history = history[history['module_type']==datatools.AssessmentInteraction.MODULETYPE]
         self.name_of_user_id = name_of_user_id
 
         self.clf = None
-        self.omit_strength = omit_strength
-        self.omit_delay = omit_delay
+        self.using_delay = using_delay
+        self.strength_var = strength_var
 
     def extract_features(self, df, correct=None):
 
@@ -112,21 +110,30 @@ class EFCLinear(models.SkillModel):
         self.clf.fit(X_train, Y_train)
         
     def predict(self, model, input, time_elapsed):
-        
-        h_power = model.predict(np.array(input).reshape(1,-1))
-        
-        if self.omit_strength:
-            time_elapsed = float(time_elapsed)/(86400)
-            h = math.pow(input[0]-1,2) + math.pow(input[1]-1, 2)
-        else:
+                
+        if self.strength_var == 'ml':
+            h_power = model.predict(np.array(input).reshape(1,-1))            
             h = hclip(math.pow(2,h_power))
-                                                
-        p = pclip(math.pow(2, (-time_elapsed)/h))
+        else:
+            correct = round(math.pow(input[0],2)-1)
+            wrong = round(math.pow(input[1], 2)-1)
+            expo = math.pow(input[2], 2)-1
+            seen = correct + wrong
+            time_elapsed = time_elapsed
+            
+            if self.strength_var == 'expo':
+                h = expo*1000
+            elif self.strength_var == 'numreviews':
+                h = seen*1000
+                
+        try:
+            p = pclip(math.pow(2, (-time_elapsed)/h))
+        except:
+            p = 0
         return p
                   
         
     def assessment_pass_likelihoods(self, df):
-        
         predictions = np.array([])
         instances = self.extract_features(df, correct=True)
         X_test = []

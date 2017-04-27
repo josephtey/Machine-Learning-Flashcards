@@ -20,13 +20,14 @@ import plotly.graph_objs as go
 plotly.tools.set_credentials_file(username='tisijoe', api_key='kv9QRxjplURljsrq6ppg')
 
 
-
-#Train Models
-def train_efc(history, filtered_history, split_history=None):
-    model = m.EFCLinear(filtered_history, name_of_user_id='student_id',omit_strength=False)
-    model.fit()
+def meta_train_efc_model(history, using_delay=True, strength_var = 'ml'):
+    #Train Models
+    def train_efc(history, filtered_history, split_history=None):
+        model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
+        model.fit()
+        return model
     
-    return model
+    return train_efc(history, history)
 
 
 def train_efc_2(history, filtered_history, split_history=None):
@@ -109,7 +110,7 @@ def makeIRTDf(user_id, module_id):
 
 def getResults(data, num_folds=10, random_truncations=True, test_p=0.2):
     model_builders = {
-        'EFC' : train_efc,
+        'EFC' : meta_train_efc_model(strength_var='ml', using_delay=True),
         'LR' : train_logistic,
         'IRT': train_onepl,
         'PERC': train_percentage,
