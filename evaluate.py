@@ -9,26 +9,43 @@ import tools as t
 import predictive_model as m
 import math
 import constants
+
 from sklearn.metrics import roc_auc_score
+from sklearn.metrics import confusion_matrix
+
 from autograd import grad
 
 import plotly
-
 import plotly.plotly as py
 import plotly.graph_objs as go 
 
 plotly.tools.set_credentials_file(username='tisijoe', api_key='kv9QRxjplURljsrq6ppg')
 
 
-def meta_train_efc_model(history, using_delay=True, strength_var = 'ml'):
+def meta_train_efc_model(using_delay=True, strength_var = 'ml'):
     #Train Models
     def train_efc(history, filtered_history, split_history=None):
         model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
         model.fit()
         return model
     
-    return train_efc(history, history)
+    #return train_efc(history, history)
+    return train_efc
 
+def meta_train_efc(history, using_delay=True, strength_var = 'ml'):
+    #Train Models
+    def train_efc(history, filtered_history, split_history=None):
+        model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
+        model.fit()
+        return model
+    
+    #return train_efc(history, history)
+    return train_efc(history,history)
+
+def train_efc(history, strength_var, using_delay):
+    model = m.EFCLinear(history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
+    model.fit()
+    return model
 
 def train_efc_2(history, filtered_history, split_history=None):
     model = m.EFCModel(
@@ -55,9 +72,18 @@ def train_twopl(history, filtered_history, split_history=None):
     model.fit()
     
     return model
+  
+def meta_train_logistic_model(using_time=True):
+    def train_logistic(history, filtered_history, split_history=None):
+        model = m.LogisticRegressionModel(filtered_history, name_of_user_id='student_id', using_time=using_time)
+        model.fit()
+
+        return model
     
-def train_logistic(history, filtered_history, split_history=None):
-    model = m.LogisticRegressionModel(filtered_history, name_of_user_id='student_id')
+    return train_logistic
+
+def train_logistic(history, filtered_history, split_history=None, using_time=True):
+    model = m.LogisticRegressionModel(filtered_history, name_of_user_id='student_id', using_time=using_time)
     model.fit()
     
     return model
@@ -110,8 +136,12 @@ def makeIRTDf(user_id, module_id):
 
 def getResults(data, num_folds=10, random_truncations=True, test_p=0.2):
     model_builders = {
-        'EFC' : meta_train_efc_model(strength_var='ml', using_delay=True),
-        'LR' : train_logistic,
+        'EFC ML' : meta_train_efc_model(strength_var='ml', using_delay=True),
+        'EFC REVIEWS' : meta_train_efc_model(strength_var='numreviews', using_delay=True),
+        'EFC CORRECT' : meta_train_efc_model(strength_var='correct', using_delay=True),
+        'EFC EXPO' : meta_train_efc_model(strength_var='expo', using_delay=True),
+        'LR TIME' : meta_train_logistic_model(using_time=True),
+        'LR' : meta_train_logistic_model(using_time=False),        
         'IRT': train_onepl,
         'PERC': train_percentage,
         'RAND': train_random
@@ -174,7 +204,7 @@ def overallAccuracy(model_names, results, type, dataset, plot_boxes = False):
     data = [go.Bar(
             x=model_names,
             y=data,
-            marker = dict(color=['rgba(222,45,38,0.8)', 'rgba(204,204,204,1)','rgba(204,204,204,1)', 'rgba(204,204,204,1)'])
+            marker = dict(color=['rgba(222,45,38,0.8)', 'rgba(222,45,38,0.8)','rgba(222,45,38,0.8)','rgba(222,45,38,0.8)','rgba(204,204,204,1)','rgba(204,204,204,1)', 'rgba(204,204,204,1)', 'rgba(204,204,204,1)'])
     )]
     
     layout = {
@@ -320,6 +350,18 @@ def online_prediction_acc(model, all_data, train_data, test_data, trained=None):
    
     return float(correct)/(float(correct)+float(wrong)), correct, wrong
 
+def getPredsAndY(model, df):
+    y_true = list(df['outcome'])
+    y_preds = model.assessment_pass_likelihoods(df)
+    
+    return y_true, y_preds
+
+def getMetrics(model, data):
+    true, preds = getPredsAndY(model, data)
+    preds = [int(round(i)) for i in preds]
+    print confusion_matrix(true, preds)
+    print roc_auc_score(true,preds)
+    
         
         
         

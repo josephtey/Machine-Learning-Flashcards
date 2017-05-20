@@ -110,7 +110,6 @@ class EFCLinear(models.SkillModel):
         self.clf.fit(X_train, Y_train)
         
     def predict(self, model, input, time_elapsed):
-                
         if self.strength_var == 'ml':
             h_power = model.predict(np.array(input).reshape(1,-1))            
             h = hclip(math.pow(2,h_power))
@@ -125,6 +124,8 @@ class EFCLinear(models.SkillModel):
                 h = expo*1000
             elif self.strength_var == 'numreviews':
                 h = seen*1000
+            elif self.strength_var == 'correct':
+                h = correct*1000
                 
         try:
             p = pclip(math.pow(2, (-time_elapsed)/h))
@@ -151,21 +152,23 @@ class EFCLinear(models.SkillModel):
     
 class LogisticRegressionModel(models.SkillModel):
 
-    def __init__(self, history, name_of_user_id='user_id'):
+    def __init__(self, history, name_of_user_id='user_id', using_time=False):
 
         self.history = history[history['module_type']==datatools.AssessmentInteraction.MODULETYPE]
         self.name_of_user_id = name_of_user_id
         self.clf = None
+        self.using_time = using_time
     
     def get_features(self, df):
         fv = []
-        for i in range(len(constants.FEATURE_NAMES)):
+        for i in range(3):
             feature = df[constants.FEATURE_NAMES[i]]
             if isfloat(feature):
                 fv.append(math.sqrt(1.0+float(feature)))
             elif isint(feature):
                 fv.append(math.sqrt(1+int(feature)))
-        fv.append(df['time_elapsed'])
+        if self.using_time:
+            fv.append(df['time_elapsed'])
         return fv
         
     def fit(self, C=1.0):
