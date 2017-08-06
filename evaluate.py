@@ -20,27 +20,56 @@ import plotly.plotly as py
 import plotly.graph_objs as go 
 
 plotly.tools.set_credentials_file(username='tisijoe', api_key='kv9QRxjplURljsrq6ppg')
+import_cols = ['Anon Student Id', 'Session Id', 'Problem Name', 'Time Elapsed', 'Outcome', 'Condition Type', 'Duration', 'Time']
 
+def meta_train_efc_model(using_delay=True, strength_var = 'ml', ability = False, difficulty=False):
 
-def meta_train_efc_model(using_delay=True, strength_var = 'ml'):
     #Train Models
     def train_efc(history, filtered_history, split_history=None):
-        model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
+        
+        if ability == True or difficulty == True:
+            onepl = train_onepl(history,history)
+        #Get IRT parameters
+        if ability == True:
+            abilities = getIRTParameters(onepl)[0]
+        else: 
+            abilities = None
+        
+        if difficulty == True:
+            difficulties = getIRTParameters(onepl)[1]
+        else: 
+            difficulties = None
+            
+        model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var, abilities=abilities, difficulties=difficulties)
         model.fit()
         return model
     
     #return train_efc(history, history)
     return train_efc
 
-def meta_train_efc(history, using_delay=True, strength_var = 'ml'):
+def meta_train_efc(history, using_delay=True, strength_var = 'ml', ability = False, difficulty=False):
+    
     #Train Models
     def train_efc(history, filtered_history, split_history=None):
-        model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
+        
+        onepl = train_onepl(history,history)
+        #Get IRT parameters
+        if ability == True:
+            abilities = getIRTParameters(onepl)[0]
+        else: 
+            abilities = None
+        
+        if difficulty == True:
+            difficulties = getIRTParameters(onepl)[1]
+        else: 
+            difficulties = None
+            
+        model = m.EFCLinear(filtered_history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var, abilities=abilities, difficulties=difficulties)
         model.fit()
         return model
     
-    #return train_efc(history, history)
-    return train_efc(history,history)
+    return train_efc(history, history)
+    #return train_efc
 
 def train_efc(history, strength_var, using_delay):
     model = m.EFCLinear(history, name_of_user_id='student_id',using_delay=using_delay, strength_var=strength_var)
@@ -98,6 +127,12 @@ def train_random(history, filtered_history, split_history=None):
     
     return model
 
+def fit_efc(history, split_history=None, using_time=True):
+    model = m.EFC(history, name_of_user_id='student_id')
+    model.fit()
+    
+    return model
+
 def trainAll(history):
     return train_efc(history, history), train_onepl(history, history), train_twopl(history, history), train_logistic(history, history)
 
@@ -108,7 +143,7 @@ def getIRTParameters(model, p=False):
     if p:
         print str(model.num_students) + ' students; ' + str(model.num_assessments) + ' assessments'
         print str(len(abilities))  + ' abilities; ' + str(len(difficulties)) + ' difficulties'
-    return abilities, difficulties
+    return list(abilities), list(difficulties)
 
 def getIRTProb(model, df, index):
     ability = getIRTParameters(model)[0][int(df.iloc[index]['student_id'])-1]
@@ -134,17 +169,19 @@ def makeIRTDf(user_id, module_id):
     
 #Evaluate Functions
 
-def getResults(data, num_folds=10, random_truncations=True, test_p=0.2):
+def getResults(data, num_folds=10, random_truncations=True, test_p=0.4):
     model_builders = {
-        'EFC ML' : meta_train_efc_model(strength_var='ml', using_delay=True),
+        'EFC ALL' : meta_train_efc_model(strength_var='ml', using_delay=True),
         'EFC REVIEWS' : meta_train_efc_model(strength_var='numreviews', using_delay=True),
-        'EFC CORRECT' : meta_train_efc_model(strength_var='correct', using_delay=True),
+        'EFC SETTLES' : meta_train_efc_model(strength_var='settles', using_delay=True),
         'EFC EXPO' : meta_train_efc_model(strength_var='expo', using_delay=True),
-        'LR TIME' : meta_train_logistic_model(using_time=True),
-        'LR' : meta_train_logistic_model(using_time=False),        
-        'IRT': train_onepl,
-        'PERC': train_percentage,
-        'RAND': train_random
+        'LEITNER': meta_train_efc_model(strength_var='leitner', using_delay=True)
+        #'LR TIME' : meta_train_logistic_model(using_time=True),
+        #'LR' : meta_train_logistic_model(using_time=False),
+        #'IRT': train_onepl,
+        #'PERC': train_percentage,
+        #'RAND': train_random,
+        
     }
     results = evaluate.cross_validated_auc(model_builders,data,num_folds=num_folds,random_truncations=random_truncations,size_of_test_set=test_p)
     return results
@@ -175,7 +212,7 @@ def getTrainingAUCs(models, history):
         aucs.append(evaluate.training_auc(models[i], history))
     return aucs
 
-def overallAccuracy(model_names, results, type, dataset, plot_boxes = False):
+def overallAccuracy(model_names, results, type, dataset, plot_boxes = False, graph=True):
     training_aucs = []
     validation_aucs = []
     test_aucs = []
@@ -201,7 +238,7 @@ def overallAccuracy(model_names, results, type, dataset, plot_boxes = False):
     low = min(data)-0.02
     high = max(data)+0.02
     
-    data = [go.Bar(
+    data_graph = [go.Bar(
             x=model_names,
             y=data,
             marker = dict(color=['rgba(222,45,38,0.8)', 'rgba(222,45,38,0.8)','rgba(222,45,38,0.8)','rgba(222,45,38,0.8)','rgba(204,204,204,1)','rgba(204,204,204,1)', 'rgba(204,204,204,1)', 'rgba(204,204,204,1)'])
@@ -213,8 +250,9 @@ def overallAccuracy(model_names, results, type, dataset, plot_boxes = False):
             'barmode': 'relative',
             'title': 'Bar Graph: ' + type + ' of different models on ' + dataset + ' dataset.'
     };
-
-    plotly.offline.plot({'data': data, 'layout': layout}, filename='basic-bar.html')
+    
+    if graph:
+        plotly.offline.plot({'data': data_graph, 'layout': layout}, filename='basic-bar.html')
     
     traces = []
     for i in range(len(model_names)):
@@ -231,10 +269,13 @@ def overallAccuracy(model_names, results, type, dataset, plot_boxes = False):
             'title': 'Validation + Training AUCs'
     };
     
-    data = traces
+    data_2 = traces
     
     if plot_boxes:
-        plotly.offline.plot({'data': data, 'layout': layout})
+        plotly.offline.plot({'data': data_2, 'layout': layout})
+    
+    if graph == False:
+        return zip(model_names, test_aucs, validation_error)
 
         
     

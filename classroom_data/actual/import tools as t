@@ -1,0 +1,25 @@
+import tools as t
+import readdata as rm
+import predictive_model as m
+import evaluate as e
+
+from lentil import models
+from lentil import evaluate
+from lentil import datatools
+
+import pandas as pd
+import numpy as np
+import pickle
+import math
+import constants
+
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import KFold
+
+chinese_history = t.loadPickle('datasets/chinese.pkl')
+train_chinese, test_chinese = t.splitHistory(chinese_history, 70)
+total, train, test = chinese_history, train_chinese, test_chinese
+
+results = e.getResults(total, 5, True)
+t.savePickle(results, 'results/chinese_2006_3.pkl')

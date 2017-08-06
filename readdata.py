@@ -196,6 +196,8 @@ def outputTrainingInstances(input_file, user, module, time, outcome, ts, pickled
     else:
         with open(pickled, 'rb') as handle:
             histories = pickle.load(handle)
+            
+    print histories
 
     instances = []
     print 'getting features'
@@ -302,7 +304,7 @@ def instancesToFile(list, fname):
         feature_string = ','.join([str(x) for x in list[i].features])
         file.write(str(list[i].last_response) + ',' + str(list[i].timestamp) + ','  + str(list[i].time_elapsed) + ',' +  str(list[i].user_id) + ',' + str(list[i].item_id) + ',assessment,' + feature_string + '\n')
 
-def getTrainingInstances(file, fname, user, module, time, outcome,ts, pickled=None, correct='CORRECT'):
+def getTrainingInstances(file, fname, user, module, time, outcome, ts=False, pickled=None, correct='CORRECT'):
     instancesToFile(outputTrainingInstances(file, user, module, time, outcome, ts=ts, pickled=pickled, correct=correct), fname)
 
 #arguments

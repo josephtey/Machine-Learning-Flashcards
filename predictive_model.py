@@ -22,6 +22,10 @@ import evaluate as e
 import constants
 import random
 
+MIN_HALF_LIFE = 5   
+MAX_HALF_LIFE = 2628000             
+LN2 = math.log(2.)
+
 Instance = namedtuple('Instance', 'p t fv h ts uid eid'.split())
 
 def isfloat(x):
@@ -43,7 +47,7 @@ def isint(x):
     
 def sclip(s):
     # bound min/max model predictions (helps with loss optimization)
-    return min(max(s, 0.0001), .9999)
+    return min(max(s, 0.20), .80)
 
 def pclip(p):
     # bound min/max model predictions (helps with loss optimization)
@@ -53,17 +57,21 @@ def hclip(h):
     # bound min/max half-life
     return min(max(h, 5), 2628000)
 
-
-class EFCLinear(models.SkillModel):
-
-    def __init__(self, history, name_of_user_id='user_id', using_delay=True, strength_var='ml'):
+class EFC(models.SkillModel):
+    def __init__(self, history, name_of_user_id='user_id', initial_weights=None, lrate=.001, hlwt=.01, l2wt=.1, sigma=1.):
         self.history = history[history['module_type']==datatools.AssessmentInteraction.MODULETYPE]
         self.name_of_user_id = name_of_user_id
-
+        
+        self.weights = defaultdict(float)
+        if initial_weights is not None:
+            self.weights.update(initial_weights)
+        self.fcounts = defaultdict(int)
+        self.lrate = lrate
+        self.hlwt = hlwt
+        self.l2wt = l2wt
+        self.sigma = sigma
         self.clf = None
-        self.using_delay = using_delay
-        self.strength_var = strength_var
-
+        
     def extract_features(self, df, correct=None):
 
         instances = []
@@ -78,12 +86,124 @@ class EFCLinear(models.SkillModel):
             user_id = current_interaction['student_id']
             
             fv = []
-            for x in range(len(constants.FEATURE_NAMES)):
+            for x in range(2):
                 feature = current_interaction[constants.FEATURE_NAMES[x]]
                 if isfloat(feature):
-                    fv.append(math.sqrt(1.0+float(feature)))
+                    fv.append((constants.FEATURE_NAMES[x], math.sqrt(1.0+float(feature)) ))
                 elif isint(feature):
-                    fv.append(math.sqrt(1+int(feature)))
+                    fv.append((constants.FEATURE_NAMES[x], math.sqrt(1+int(feature))))
+
+            inst = Instance(p, t, fv, h, timestamp, user_id, item_id)
+            instances.append(inst)
+        
+        #return list of instances
+        return instances
+    def train_update(self, inst):
+        base = 2.
+        p, h = self.predict(inst, base)
+        dlp_dw = 2.*(p-inst.p)*(LN2**2)*p*(inst.t/h)
+        dlh_dw = 2.*(h-inst.h)*LN2*h
+        for (k, x_k) in inst.fv:
+            rate = (1./(1+inst.p)) * self.lrate / math.sqrt(1 + self.fcounts[k])
+            self.weights[k] -= rate * dlp_dw * x_k
+            self.weights[k] -= rate * self.hlwt * dlh_dw * x_k
+            self.weights[k] -= rate * self.l2wt * self.weights[k] / self.sigma**2
+            self.fcounts[k] += 1
+        
+    def fit(self, C=1.0):
+        
+        instances = self.extract_features(self.history, correct=True)
+
+        for inst in instances:
+            #print inst
+            self.train_update(inst)
+        
+        print self.weights
+            
+    def halflife(self, inst, base):
+        try:
+            dp = sum([self.weights[k]*x_k for (k, x_k) in inst.fv])
+            return hclip(base ** dp)
+        except:
+            return MAX_HALF_LIFE   
+        
+    def predict(self, inst, base=2.):
+        h = self.halflife(inst, base)
+        p = 2. ** (-inst.t/h)
+        print h
+        return pclip(p), h
+                  
+        
+    def assessment_pass_likelihoods(self, df):
+        instances = self.extract_features(df, correct=True)
+        predictions = []
+        for inst in instances:
+            predictions.append(self.predict(inst))
+
+        return predictions
+    
+class EFCLinear(models.SkillModel):
+
+    def __init__(self, history, name_of_user_id='user_id', using_delay=True, strength_var='ml', abilities=None, difficulties=None):
+        self.history = history[history['module_type']==datatools.AssessmentInteraction.MODULETYPE]
+        self.name_of_user_id = name_of_user_id
+
+        self.clf = None
+        self.using_delay = using_delay
+        self.strength_var = strength_var
+        self.abilities = abilities
+        self.difficulties = difficulties
+        if self.strength_var == 'ml':
+            self.FEATURE_NAMES =  ['seen', 'history_correct', 'history_wrong', 'exponential', 'wrong_streak', 'right_streak', 'average_outcome', 'average_time']
+        elif self.strength_var == 'numreviews':
+            self.FEATURE_NAMES = ['seen']
+        elif self.strength_var == 'settles' or self.strength_var == 'leitner':
+            self.FEATURE_NAMES = ['history_correct', 'history_wrong']
+        elif self.strength_var == 'expo':
+            self.FEATURE_NAMES =  ['exponential']
+
+    def extract_features(self, df, correct=None):
+        
+        if self.abilities != None:
+            users = list(set([str(i) for i in list(df['student_id'])]))
+            abilities = dict(zip(users, self.abilities))
+        
+        if self.difficulties != None:
+            items = list(set([str(i) for i in list(df['module_id'])]))
+            difficulties = dict(zip(items, self.difficulties))
+        
+        instances = []
+        for i in range(len(df)):
+            current_interaction = df.iloc[i]
+            
+            p = sclip(float(current_interaction['outcome']))
+            t = float(current_interaction['time_elapsed'])
+            h = hclip(-t/(math.log(p, 2)))
+            item_id = current_interaction['module_id']
+            timestamp = int(current_interaction['timestamp'])
+            user_id = current_interaction['student_id']
+            
+            
+            fv = []
+            for x in range(len(self.FEATURE_NAMES)):
+                if self.FEATURE_NAMES[x] != 'seen':
+                    feature = current_interaction[self.FEATURE_NAMES[x]]
+                    if isfloat(feature):
+                        fv.append(math.sqrt(1.0+float(feature)))
+                    elif isint(feature):
+                        fv.append(math.sqrt(1+int(feature)))
+                else:
+                    fv.append(math.sqrt(((int(current_interaction['history_correct'])**2)-1) + ((int(current_interaction['history_wrong'])**2)-1) + 1))
+            
+            #IRT parameters
+            if self.abilities != None:
+                ability = abilities[user_id]
+                fv.append(ability)
+            
+            if self.difficulties != None:
+                difficulty = difficulties[item_id]
+                fv.append(difficulty)
+            
             
             inst = Instance(p, t, fv, h, timestamp, user_id, item_id)
             instances.append(inst)
@@ -110,22 +230,17 @@ class EFCLinear(models.SkillModel):
         self.clf.fit(X_train, Y_train)
         
     def predict(self, model, input, time_elapsed):
-        if self.strength_var == 'ml':
-            h_power = model.predict(np.array(input).reshape(1,-1))            
-            h = hclip(math.pow(2,h_power))
-        else:
-            correct = round(math.pow(input[0],2)-1)
-            wrong = round(math.pow(input[1], 2)-1)
-            expo = math.pow(input[2], 2)-1
-            seen = correct + wrong
-            time_elapsed = time_elapsed
-            
-            if self.strength_var == 'expo':
-                h = expo*1000
-            elif self.strength_var == 'numreviews':
-                h = seen*1000
-            elif self.strength_var == 'correct':
-                h = correct*1000
+        h_power = model.predict(np.array(input).reshape(1,-1))            
+        h = hclip(math.pow(2,h_power))
+
+        #if self.strength_var == 'expo':
+        #    h = hclip(math.exp(expo))
+        #elif self.strength_var == 'numreviews':
+        #    h = hclip(math.exp(seen))
+        #elif self.strength_var == 'correct':
+        #    h = correct*500
+        if self.strength_var == 'leitner':
+            h = hclip(math.exp(input[0]))
                 
         try:
             p = pclip(math.pow(2, (-time_elapsed)/h))
@@ -144,7 +259,12 @@ class EFCLinear(models.SkillModel):
             X_test.append(x)
             
         for i in range(len(X_test)):
-            prediction = self.predict(self.clf, X_test[i][0:len(constants.FEATURE_NAMES)],X_test[i][len(constants.FEATURE_NAMES)])
+            if self.abilities != None and self.difficulties == None or self.difficulties != None and self.abilities == None:
+                prediction = self.predict(self.clf, X_test[i][0:len(self.FEATURE_NAMES)+2],X_test[i][2+len(self.FEATURE_NAMES)])
+            elif self.abilities != None and self.difficulties != None:
+                prediction = self.predict(self.clf, X_test[i][0:len(self.FEATURE_NAMES)+2],X_test[i][2+len(self.FEATURE_NAMES)])
+            else:
+                prediction = self.predict(self.clf, X_test[i][0:len(self.FEATURE_NAMES)],X_test[i][len(self.FEATURE_NAMES)])
             predictions = np.append(predictions, prediction)
 
         return predictions

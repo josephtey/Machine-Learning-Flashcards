@@ -1,0 +1,41 @@
+Experiment 1
+User1, 10, 0
+User2, 4, 0
+User3, 14, 16
+User4, 2, 0
+User6, 3, 0
+User7, 8, 10
+User8, 2, 0
+User9, 3, 6
+User12, 1, 0
+User13, 6, 2
+User14, 6, 2
+User15, 16, 12
+User16, 8, 3
+User17, 15, 12
+
+Experiment 2
+User12, 16, 10
+User13, 16, 12
+User14, 18, 19
+User15, 10, 7
+User17, 9, 8
+
+User20, 3, 4
+User21, 2, 2
+User22, 12, 2
+User23, 3, 1
+User24, 3, 4
+User25, 15, 7
+
+
+Experiment 3
+User1, 2, 2
+User2, 10, 7
+User3, 1, 1
+User4, 0, 0
+User5, 5, 2
+User6, 9, 0
+User7, 7, 20
+User8, 5, 0
+User9, 13, 13
